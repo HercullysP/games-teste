@@ -205,6 +205,32 @@ const r0 = rnd(7);
 const treeLayers = [0.2, 0.45, 0.7].map((par, li) => ({ par, col: ['#0f2a1c', '#0b2015', '#07160e'][li], trees: Array.from({ length: 26 }, (_, i) => ({ x: i * 120 + r0() * 90, h: 160 + r0() * 140 + li * 30, w: 50 + r0() * 30 + li * 10 })) }));
 const fireflies = Array.from({ length: 30 }, () => ({ x: r0() * LW * T, y: 120 + r0() * 250, p: r0() * 6 }));
 
+// ====== Mapas (desbloqueados pelos pontos TOTAIS acumulados neste aparelho) ======
+// Referência de pontuação: morrer na rodada 3 ≈ 2.000 pts, rodada 5 ≈ 5.000, rodada 8 ≈ 14.000.
+const MAPAS = [
+  { id: 'floresta', nome: 'Floresta', pts: 0, cor: '#2f5a26' },
+  { id: 'cidade', nome: 'Cidade Abandonada', pts: 10000, cor: '#6b6f78' },
+  { id: 'hospital', nome: 'Hospital', pts: 25000, cor: '#7fb3a8' },
+  { id: 'neve', nome: 'Neve', pts: 50000, cor: '#dfefff' },
+];
+let mapIdx = 0, totalPts = 0, totalAntes = 0;
+try { totalPts = +localStorage.getItem('floresta_total') || 0; const m = +localStorage.getItem('floresta_mapa'); if (m >= 0 && m < MAPAS.length) mapIdx = m; } catch (e) {}
+const mapaLivre = i => totalPts >= MAPAS[i].pts;
+if (!mapaLivre(mapIdx)) mapIdx = 0;
+const MAPA = () => MAPAS[state === 'title' ? 0 : mapIdx].id;
+const r1 = rnd(11);
+const predios = [0.15, 0.4, 0.7].map((par, li) => ({ par, col: ['#1a1d26', '#14161d', '#0d0e13'][li], b: Array.from({ length: 24 }, (_, i) => ({ x: i * 130 + r1() * 40, w: 70 + r1() * 60, h: 120 + r1() * 200 - li * 30, ruina: r1(), jan: Math.floor(r1() * 1e6) })) }));
+const carros = Array.from({ length: 8 }, (_, i) => ({ x: 150 + i * 290 + r1() * 80, cor: ['#7a2e2e', '#2e4a7a', '#5a5a3a', '#444'][i % 4], tomb: r1() < 0.25 }));
+const postes = Array.from({ length: 10 }, (_, i) => ({ x: 80 + i * 230, quebrado: r1() < 0.5, p: r1() * 9 }));
+const neveFlocos = Array.from({ length: 140 }, () => ({ x: r1() * VW, y: r1() * VH, v: 30 + r1() * 50, s: 1 + Math.floor(r1() * 3), p: r1() * 6 }));
+const poeira = Array.from({ length: 40 }, () => ({ x: r1() * LW * T, y: 60 + r1() * 320, p: r1() * 6 }));
+const PALETA = {
+  floresta: null,
+  cidade: { chao: '#3a3a3e', det: '#2c2c30', topo: '#55575c', topo2: '#2a2a2e', risco: '#c9b23a', plat: '#5b4a3a', plat2: '#7a654e', plat3: '#33281e', pedra: '#6a6060', pedra2: '#8a7f7f' },
+  hospital: { chao: '#c8d3d0', det: '#aab8b4', topo: '#e9efee', topo2: '#8fa29d', risco: '#9fc4bd', plat: '#9aa6ad', plat2: '#cfd8dc', plat3: '#5f6b71', pedra: '#b0b8bf', pedra2: '#e0e6ea' },
+  neve: { chao: '#5a6f86', det: '#4a5d72', topo: '#f2f7ff', topo2: '#bcd3ea', risco: '#d8ecff', plat: '#6d5a48', plat2: '#f2f7ff', plat3: '#3e3226', pedra: '#8fa7bf', pedra2: '#f2f7ff' },
+};
+
 // ====== Áudio procedural (WebAudio) ======
 // Tudo é sintetizado: nenhum arquivo de som. Cada efeito é uma função (ctx, saída, tempo, opções)
 // e funciona tanto no AudioContext do jogo quanto num OfflineAudioContext (testes).
@@ -383,6 +409,7 @@ addEventListener('keydown', e => {
   audioInit();
   if (RK.aberto) { if (e.key === 'Escape' && !e.repeat) { e.preventDefault(); rkFecharPainel(); } return; } // digitando o nome / painel aberto
   if (e.code === 'KeyR' && !e.repeat && (state === 'title' || state === 'select')) { sfx.ok(); rkAbrir('top'); return; }
+  if (state === 'mapa') { if (e.code === 'ArrowLeft' || e.code === 'KeyA') pickMapa(-1); if (e.code === 'ArrowRight' || e.code === 'KeyD') pickMapa(1); }
   if (state === 'select') { if (e.code === 'ArrowLeft' || e.code === 'KeyA') pick(-1); if (e.code === 'ArrowRight' || e.code === 'KeyD') pick(1); }
   const k = KEYMAP[e.code];
   if (k) { e.preventDefault(); if (k === 'jump' && !keys.jump && state === 'play') jumpQueued = true; keys[k] = true; }
@@ -394,7 +421,7 @@ addEventListener('keydown', e => {
   }
   if (e.code === 'KeyM' && !e.repeat) { somCfg.mudo = !somCfg.mudo; salvarSom(); }
   if (e.code === 'KeyN' && !e.repeat) { somCfg.musica = !somCfg.musica; salvarSom(); }
-  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) { if (state === 'select' && e.code === 'Escape') state = 'title'; else togglePause(); }
+  if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) { if (state === 'select' && e.code === 'Escape') state = 'title'; else if (state === 'mapa' && e.code === 'Escape') state = 'select'; else togglePause(); }
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) keys[k] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -473,26 +500,33 @@ function tapScreen(clientX, clientY) {
   if (state === 'play') return;
   const r = canvas.getBoundingClientRect(), mx = (clientX - r.left) * VW / r.width, my = (clientY - r.top) * VH / r.height;
   if (state === 'select') {
-    const i = cardAt(mx, my); if (i >= 0) { if (i === selIdx) { sfx.ok(); startGame(); } else { selIdx = i; sfx.menu(); } return; }
-    if (mx > PLAY_BTN.x && mx < PLAY_BTN.x + PLAY_BTN.w && my > PLAY_BTN.y && my < PLAY_BTN.y + PLAY_BTN.h) { sfx.ok(); startGame(); }
+    const i = cardAt(mx, my); if (i >= 0) { if (i === selIdx) { sfx.ok(); state = 'mapa'; } else { selIdx = i; sfx.menu(); } return; }
+    if (mx > PLAY_BTN.x && mx < PLAY_BTN.x + PLAY_BTN.w && my > PLAY_BTN.y && my < PLAY_BTN.y + PLAY_BTN.h) { sfx.ok(); state = 'mapa'; }
     return;
+  }
+  if (state === 'mapa') {
+    const i = mapaAt(mx, my); if (i >= 0) { if (i === mapIdx && mapaLivre(i)) { sfx.ok(); startGame(); } else { mapIdx = i; sfx.menu(); } return; }
+    if (mx > PLAY_BTN.x && mx < PLAY_BTN.x + PLAY_BTN.w && my > PLAY_BTN.y && my < PLAY_BTN.y + PLAY_BTN.h) { if (mapaLivre(mapIdx)) { sfx.ok(); startGame(); } else sfx.menu(); return; }
+    if (mx < 130 && my < 70) { sfx.menu(); state = 'select'; } return;
   }
   if (RK.aberto || state === 'gameover') return; // fim de jogo usa o painel do ranking
   onConfirm();
 }
 // ====== Estado ======
-let state = 'title'; // title | select | play | paused | dead | gameover
+let state = 'title'; // title | select | mapa | play | paused | dead | gameover
 let selIdx = 0, score = 0, lives = 3, kills = 0, time = 0, stateTimer = 0, shake = 0;
 let round = 0, phase = 'intervalo', phaseTimer = 0, toSpawn = 0, spawnTimer = 0, banner = '', banner2 = '';
 let player, zombies = [], bullets = [], particles = [], pickups = [], cam = { x: 0 };
 let best = 0; try { best = +localStorage.getItem('floresta_recorde') || 0; } catch (e) {}
 
+function pickMapa(d) { mapIdx = (mapIdx + d + MAPAS.length) % MAPAS.length; sfx.menu(); }
 function pick(d) { selIdx = (selIdx + d + PERSONAGENS.length) % PERSONAGENS.length; sfx.menu(); }
 function onConfirm() {
   audioInit(); if (state !== 'paused') sfx.ok();
   if (state === 'gameover') { if (stateTimer > 0.4) rkAbrir('fim'); return; }
   if (state === 'title') state = 'select';
-  else if (state === 'select') startGame();
+  else if (state === 'select') state = 'mapa';
+  else if (state === 'mapa') { if (mapaLivre(mapIdx)) startGame(); else sfx.menu(); }
   else if (state === 'paused') state = 'play';
 }
 function togglePause() { if (state === 'play') state = 'paused'; else if (state === 'paused') state = 'play'; }
@@ -503,6 +537,7 @@ function newPlayer() {
     guns: ARMAS.map((a, i) => ({ mag: a.pente, res: a.reserva, owned: !a.desbloqueiaNaRodada })) };
 }
 function startGame() {
+  if (!mapaLivre(mapIdx)) mapIdx = 0; try { localStorage.setItem('floresta_mapa', mapIdx); } catch (e) {}
   RK.enviadoNestaPartida = false; RK.modo = '';
   score = 0; lives = 3; kills = 0; zombies = []; bullets = []; particles = []; pickups = [];
   player = newPlayer(); player.char = selIdx; cam.x = player.x - VW / 2;
@@ -593,7 +628,7 @@ function killZombie(z) {
 function hurtPlayer(dmg, fromX, z) {
   const p = player; if (p.inv > 0 || state !== 'play') return;
   p.hp -= dmg; p.inv = 0.9; if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {} p.vx = Math.sign(p.x - fromX || 1) * 320; p.vy = -280; shake = 8; sfx.hurt(); if (z) sfx.bite(z); burst(p.x + 12, p.y + 20, '#d32f2f', 10);
-  if (p.hp <= 0) { p.hp = 0; lives--; if (lives <= 0) { state = 'gameover'; stateTimer = 0; if (score > best) { best = score; try { localStorage.setItem('floresta_recorde', best); } catch (e) {} } setTimeout(sfx.over, 300); } else { state = 'dead'; stateTimer = 0; sfx.playerDeath(); } }
+  if (p.hp <= 0) { p.hp = 0; lives--; if (lives <= 0) { state = 'gameover'; stateTimer = 0; totalAntes = totalPts; totalPts += Math.max(0, score | 0); try { localStorage.setItem('floresta_total', totalPts); } catch (e) {} if (score > best) { best = score; try { localStorage.setItem('floresta_recorde', best); } catch (e) {} } setTimeout(sfx.over, 300); } else { state = 'dead'; stateTimer = 0; sfx.playerDeath(); } }
 }
 
 // ====== Atualização ======
@@ -684,6 +719,7 @@ function update(dt) {
 // ====== Desenho ======
 function rect(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
 function drawBackground(cx) {
+  const M = MAPA(); if (M === 'cidade') return bgCidade(cx); if (M === 'hospital') return bgHospital(cx); if (M === 'neve') return bgNeve(cx);
   const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#0a1a2a'); g.addColorStop(0.6, '#1d3b35'); g.addColorStop(1, '#2a4a30');
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
   ctx.fillStyle = '#f4f1d0'; ctx.beginPath(); ctx.arc(620 - cx * 0.05, 80, 36, 0, 7); ctx.fill();
@@ -699,7 +735,80 @@ function drawBackground(cx) {
   }
   ctx.fillStyle = 'rgba(160,200,180,0.08)'; for (let i = 0; i < 3; i++) ctx.fillRect(0, 300 + i * 30 + Math.sin(time * 0.5 + i) * 8, VW, 18);
 }
+const wrapX = (x, per) => ((x % per) + per) % per - 150;
+function bgCidade(cx) {
+  const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#2a1410'); g.addColorStop(0.55, '#5a2a18'); g.addColorStop(1, '#2b2220');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = '#ff9a5a55'; ctx.beginPath(); ctx.arc(180 - cx * 0.04, 120, 60, 0, 7); ctx.fill();
+  for (const L of predios) for (const b of L.b) {
+    const x = wrapX(b.x - cx * L.par, 3120); if (x < -150 || x > VW + 20) continue; const base = 12 * T + 10, top = base - b.h;
+    ctx.fillStyle = L.col; ctx.beginPath(); ctx.moveTo(x, base); ctx.lineTo(x, top);
+    if (b.ruina > 0.5) { ctx.lineTo(x + b.w * 0.3, top + 18); ctx.lineTo(x + b.w * 0.55, top - 6); ctx.lineTo(x + b.w * 0.8, top + 30); } ctx.lineTo(x + b.w, top + (b.ruina > 0.5 ? 24 : 0)); ctx.lineTo(x + b.w, base); ctx.fill();
+    if (L.par > 0.3) for (let wy = top + 34; wy < base - 20; wy += 22) for (let wx = x + 8; wx < x + b.w - 12; wx += 16) {
+      const h = (b.jan + wx * 7 + wy * 13) % 17; if (h < 2) rect(wx, wy, 8, 10, h === 0 && Math.sin(time * 9 + b.jan) > 0.3 ? '#ffcf6a' : '#5a4a2a'); else if (h < 6) rect(wx, wy, 8, 10, '#0005'); }
+  }
+  for (const c of carros) { const x = wrapX(c.x - cx * 0.85, 2400); if (x < -100 || x > VW + 100) continue; const y = 12 * T - 2;
+    if (c.tomb) { rect(x, y - 18, 64, 16, c.cor); rect(x + 10, y - 26, 40, 8, '#222'); }
+    else { rect(x, y - 20, 70, 14, c.cor); rect(x + 14, y - 32, 38, 12, c.cor); rect(x + 18, y - 30, 14, 8, '#1a2a33'); rect(x + 35, y - 30, 14, 8, '#1a2a33'); }
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(x + 14, y - 5, 6, 0, 7); ctx.arc(x + 56, y - 5, 6, 0, 7); ctx.fill(); }
+  for (const p of postes) { const x = wrapX(p.x - cx * 0.95, 2300); if (x < -60 || x > VW + 60) continue; const base = 12 * T;
+    rect(x, base - 150, 5, 150, '#2b2b2f'); if (p.quebrado) { ctx.save(); ctx.translate(x + 2, base - 150); ctx.rotate(0.6); rect(0, 0, 4, 36, '#2b2b2f'); ctx.restore(); continue; }
+    rect(x, base - 150, 34, 4, '#2b2b2f'); const on = Math.sin(time * 13 + p.p) + Math.sin(time * 4.7 + p.p * 2) > -0.6;
+    if (on) { ctx.fillStyle = 'rgba(255,214,120,0.13)'; ctx.beginPath(); ctx.moveTo(x + 26, base - 146); ctx.lineTo(x - 10, base); ctx.lineTo(x + 70, base); ctx.fill(); rect(x + 22, base - 147, 10, 4, '#ffd678'); } }
+  ctx.fillStyle = 'rgba(120,90,70,0.10)'; for (let i = 0; i < 3; i++) ctx.fillRect(0, 300 + i * 30 + Math.sin(time * 0.4 + i) * 8, VW, 18);
+}
+function bgHospital(cx) {
+  rect(0, 0, VW, VH, '#1d2b2a'); const par = 0.6, ph = 240, off = ((cx * par) % ph + ph) % ph;
+  rect(0, 0, VW, 90, '#18201f'); // teto
+  for (let x = -off; x < VW + ph; x += ph) {
+    const i = Math.floor((x + cx * par) / ph); const on = (i * 7) % 5 !== 0 || Math.sin(time * 17 + i) > 0.6;
+    rect(x + 60, 84, 120, 8, on ? '#e8fff4' : '#3a4a48');
+    if (on) { ctx.fillStyle = 'rgba(200,255,235,0.07)'; ctx.beginPath(); ctx.moveTo(x + 60, 92); ctx.lineTo(x + 180, 92); ctx.lineTo(x + 230, 12 * T); ctx.lineTo(x + 10, 12 * T); ctx.fill(); }
+    rect(x, 100, ph, 150, '#2c4a46'); rect(x, 250, ph, 4, '#5f8f86'); rect(x, 254, ph, 130, '#22383a'); // parede + faixa
+    rect(x + 30, 130, 60, 110, '#1a2625'); rect(x + 34, 134, 52, 40, '#0f1817'); rect(x + 80, 185, 4, 10, '#9fb'); // porta
+    if (i % 3 === 0) { ctx.fillStyle = '#c33'; ctx.fillRect(x + 140, 120, 30, 8); ctx.fillRect(x + 151, 109, 8, 30); } // cruz
+    if (i % 2 === 0) { const bx = x + 120, by = 12 * T; rect(bx, by - 30, 90, 8, '#cfd8dc'); rect(bx, by - 40, 18, 10, '#eceff1'); rect(bx + 4, by - 22, 4, 22, '#78909c'); rect(bx + 82, by - 22, 4, 22, '#78909c'); rect(bx + 30, by - 36, 50, 6, '#7a2020aa'); } // maca
+    else { rect(x + 150, 12 * T - 60, 3, 60, '#90a4ae'); rect(x + 142, 12 * T - 64, 18, 4, '#90a4ae'); rect(x + 146, 12 * T - 58, 10, 16, '#a5d6a7aa'); } // soro
+    ctx.fillStyle = '#5a1010aa'; ctx.beginPath(); ctx.ellipse(x + 200, 230 + (i % 3) * 20, 10 + (i % 4) * 4, 6, 0.4, 0, 7); ctx.fill();
+  }
+  if (Math.sin(time * 23) + Math.sin(time * 3.1) > 1.7) rect(0, 0, VW, VH, 'rgba(0,0,0,0.35)');
+}
+function bgNeve(cx) {
+  const g = ctx.createLinearGradient(0, 0, 0, VH); g.addColorStop(0, '#0d1626'); g.addColorStop(0.6, '#3a4e6a'); g.addColorStop(1, '#8aa2c0');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = '#e8f0ff'; ctx.beginPath(); ctx.arc(160 - cx * 0.05, 90, 30, 0, 7); ctx.fill(); ctx.fillStyle = '#e8f0ff22'; ctx.beginPath(); ctx.arc(160 - cx * 0.05, 90, 60, 0, 7); ctx.fill();
+  ctx.fillStyle = '#4c6280'; ctx.beginPath(); ctx.moveTo(0, 300); for (let x = 0; x <= VW; x += 40) ctx.lineTo(x, 250 + Math.sin((x + cx * 0.1) * 0.01) * 50 + Math.sin((x + cx * 0.1) * 0.023) * 25); ctx.lineTo(VW, VH); ctx.lineTo(0, VH); ctx.fill();
+  const cols = ['#24344a', '#1b2738', '#121b28'];
+  treeLayers.forEach((L, li) => { for (const t of L.trees) {
+    const x = wrapX(t.x - cx * L.par, 3120); if (x < -120 || x > VW + 120) continue; const base = 12 * T + 10;
+    ctx.fillStyle = cols[li]; ctx.fillRect(x - 6, base - t.h * 0.4, 12, t.h * 0.4);
+    for (let k = 0; k < 4; k++) { const ty = base - t.h * 0.3 - k * t.h * 0.18, w = t.w * (1 - k * 0.2);
+      ctx.fillStyle = cols[li]; ctx.beginPath(); ctx.moveTo(x - w, ty); ctx.lineTo(x, ty - t.h * 0.3); ctx.lineTo(x + w, ty); ctx.fill();
+      ctx.fillStyle = li === 2 ? '#c8d8ec' : '#9fb4cf'; ctx.beginPath(); ctx.moveTo(x - w * 0.45, ty - t.h * 0.165); ctx.lineTo(x, ty - t.h * 0.3); ctx.lineTo(x + w * 0.45, ty - t.h * 0.165); ctx.fill(); } } });
+  ctx.fillStyle = 'rgba(220,235,255,0.08)'; for (let i = 0; i < 3; i++) ctx.fillRect(0, 300 + i * 30 + Math.sin(time * 0.5 + i) * 8, VW, 18);
+}
+function drawTilesTema(cx, P) {
+  const x0 = Math.max(0, Math.floor(cx / T)), x1 = Math.min(LW - 1, x0 + Math.ceil(VW / T) + 1), M = MAPA();
+  for (let ty = 0; ty < LH; ty++) for (let tx = x0; tx <= x1; tx++) {
+    const t = grid[ty][tx]; if (!t) continue; const x = Math.round(tx * T - cx), y = ty * T;
+    if (t === 1) { rect(x, y, T, T, P.chao); ctx.fillStyle = P.det;
+      if (M === 'hospital') { rect(x, y, T, 1, P.det); rect(x, y, 1, T, P.det); } else for (let k = 0; k < 3; k++) ctx.fillRect(x + ((tx * 7 + k * 11 + ty * 5) % 26) + 2, y + ((k * 9 + tx * 3) % 22) + 8, 4, 3);
+      if (ty === 12) { rect(x, y, T, 8, P.topo); rect(x, y + 8, T, 3, P.topo2);
+        if (M === 'cidade' && tx % 3 === 0) rect(x + 4, y + 2, 18, 3, P.risco);
+        if (M === 'hospital' && (tx + 1) % 2) rect(x, y, T, 8, '#dde6e4');
+        if (M === 'neve') { rect(x, y - 3, T, 3, P.topo); for (let k = 0; k < T; k += 8) rect(x + k + (tx % 4), y + 9, 5, 2, '#a8d4ff'); } } }
+    else if (t === 2) { const l = !grid[ty][tx - 1], r = !grid[ty][tx + 1];
+      if (M === 'hospital') { rect(x, y, T, 12, P.plat); rect(x, y, T, 3, P.plat2); rect(x, y + 10, T, 2, P.plat3); if (l || r) rect(r ? x + T - 4 : x, y + 12, 4, 10, P.plat3); }
+      else if (M === 'cidade') { rect(x, y, T, 12, P.plat); rect(x, y, T, 3, P.plat2); rect(x, y + 10, T, 2, P.plat3); for (let k = 2; k < T; k += 8) rect(x + k, y + 4, 2, 6, '#2a2018'); }
+      else { rect(x, y, T, 12, P.plat); rect(x, y - 3, T, 5, P.plat2); rect(x, y + 10, T, 2, P.plat3); if (tx % 2) rect(x + 12, y + 12, 2, 5, '#cfe8ff'); } }
+    else { ctx.fillStyle = P.pedra;
+      if (M === 'hospital') { rect(x + 4, y + 6, 24, 26, '#b03a2e'); rect(x + 4, y + 6, 24, 4, '#e57373'); rect(x + 12, y + 14, 8, 8, '#fff'); } // caixa/lixo hospitalar
+      else if (M === 'cidade') { rect(x + 1, y + 8, 30, 24, '#4a5a3a'); rect(x + 1, y + 8, 30, 4, '#5f7148'); rect(x + 4, y + 16, 24, 2, '#33402a'); } // caçamba
+      else { ctx.beginPath(); ctx.moveTo(x + 2, y + T); ctx.lineTo(x + 5, y + 8); ctx.lineTo(x + 16, y + 2); ctx.lineTo(x + 28, y + 9); ctx.lineTo(x + 31, y + T); ctx.fill(); rect(x + 6, y + 3, 20, 5, P.pedra2); } }
+  }
+}
 function drawTiles(cx) {
+  const P = PALETA[MAPA()]; if (P) return drawTilesTema(cx, P);
   const x0 = Math.max(0, Math.floor(cx / T)), x1 = Math.min(LW - 1, x0 + Math.ceil(VW / T) + 1);
   for (let ty = 0; ty < LH; ty++) for (let tx = x0; tx <= x1; tx++) {
     const t = grid[ty][tx]; if (!t) continue; const x = Math.round(tx * T - cx), y = ty * T;
@@ -776,8 +885,12 @@ function drawFX(cx) {
   for (const q of particles) { ctx.globalAlpha = Math.max(0, Math.min(1, q.life * 2));
     if (q.text) text(q.text, q.x - cx + 10, q.y, 14, '#fff'); else rect(q.x - cx - q.s / 2, q.y - q.s / 2, q.s, q.s, q.color); }
   ctx.globalAlpha = 1;
-  for (const f of fireflies) { const x = f.x - cx * 0.9; if (x < 0 || x > VW) continue; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 3 + f.p); rect(x + Math.sin(time + f.p) * 10, f.y + Math.cos(time * 0.7 + f.p) * 8, 2, 2, '#e6ff8a'); }
+  const M = MAPA();
+  if (M === 'neve') { for (const f of neveFlocos) { const x = ((f.x + Math.sin(time + f.p) * 12 - cx * 0.3) % VW + VW) % VW, y = (f.y + time * f.v) % VH; rect(x, y, f.s, f.s, '#f2f7ff'); } }
+  else if (M === 'cidade') { for (const f of poeira) { const x = f.x - cx * 0.9; if (x < 0 || x > VW) continue; ctx.globalAlpha = 0.5; rect(x + Math.sin(time * 0.5 + f.p) * 20, (f.y + time * 12) % 400, 2, 2, '#c8a080'); } ctx.globalAlpha = 1; }
+  else if (M === 'floresta') for (const f of fireflies) { const x = f.x - cx * 0.9; if (x < 0 || x > VW) continue; ctx.globalAlpha = 0.4 + 0.4 * Math.sin(time * 3 + f.p); rect(x + Math.sin(time + f.p) * 10, f.y + Math.cos(time * 0.7 + f.p) * 8, 2, 2, '#e6ff8a'); }
   ctx.globalAlpha = 1;
+  if (M === 'neve') rect(0, 0, VW, VH, 'rgba(140,180,255,0.06)'); else if (M === 'hospital') rect(0, 0, VW, VH, 'rgba(60,255,180,0.04)');
   const v = ctx.createRadialGradient(VW / 2, VH / 2, 200, VW / 2, VH / 2, 520); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.6)'); ctx.fillStyle = v; ctx.fillRect(0, 0, VW, VH);
 }
 function text(s, x, y, size = 20, color = '#fff', align = 'center') {
@@ -805,6 +918,43 @@ const confirmMsg = () => isTouch ? 'Toque na tela' : 'Pressione ENTER';
 const CARD_GAP = 12, CARD_W = Math.min(150, Math.floor((VW - 40 - (PERSONAGENS.length - 1) * CARD_GAP) / PERSONAGENS.length)), CARD_H = 200,
   cardX = i => VW / 2 - (PERSONAGENS.length * (CARD_W + CARD_GAP) - CARD_GAP) / 2 + i * (CARD_W + CARD_GAP), CARD_Y = 105;
 const PLAY_BTN = { x: VW / 2 - 100, y: 330, w: 200, h: 46 };
+const MCARD_W = 176, MCARD_GAP = 14, MCARD_H = 196, MCARD_Y = 92, mcardX = i => VW / 2 - (MAPAS.length * (MCARD_W + MCARD_GAP) - MCARD_GAP) / 2 + i * (MCARD_W + MCARD_GAP);
+function mapaAt(mx, my) { for (let i = 0; i < MAPAS.length; i++) if (mx > mcardX(i) && mx < mcardX(i) + MCARD_W && my > MCARD_Y && my < MCARD_Y + MCARD_H) return i; return -1; }
+function miniMapa(i, x, y, w, h) {
+  const id = MAPAS[i].id; ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  const g = ctx.createLinearGradient(0, y, 0, y + h), c = { floresta: ['#0a1a2a', '#2a4a30', '#07160e', '#2f5a26'], cidade: ['#2a1410', '#5a2a18', '#14161d', '#55575c'], hospital: ['#18201f', '#2c4a46', '#22383a', '#e9efee'], neve: ['#0d1626', '#8aa2c0', '#1b2738', '#f2f7ff'] }[id];
+  g.addColorStop(0, c[0]); g.addColorStop(1, c[1]); ctx.fillStyle = g; ctx.fillRect(x, y, w, h); ctx.fillStyle = c[2];
+  for (let k = 0; k < 5; k++) { const bx = x + 10 + k * 36, hh = 30 + ((k * 37) % 40);
+    if (id === 'cidade') ctx.fillRect(bx, y + h - 20 - hh, 28, hh);
+    else if (id === 'hospital') { ctx.fillRect(bx, y + 20, 26, h - 40); ctx.fillStyle = '#e8fff4'; ctx.fillRect(bx + 4, y + 8, 18, 4); ctx.fillStyle = c[2]; }
+    else { ctx.beginPath(); ctx.moveTo(bx - 4, y + h - 20); ctx.lineTo(bx + 13, y + h - 20 - hh - 20); ctx.lineTo(bx + 30, y + h - 20); ctx.fill(); } }
+  if (id === 'neve') { ctx.fillStyle = '#fff'; for (let k = 0; k < 30; k++) ctx.fillRect(x + (k * 53) % w, y + ((k * 29 + time * 30) % h), 2, 2); }
+  if (id === 'hospital') { ctx.fillStyle = '#c33'; ctx.fillRect(x + w / 2 - 10, y + 34, 20, 6); ctx.fillRect(x + w / 2 - 3, y + 27, 6, 20); }
+  ctx.fillStyle = c[3]; ctx.fillRect(x, y + h - 20, w, 20); ctx.restore();
+}
+function drawMapas() {
+  overlay(0.6); text('ESCOLHA O MAPA', VW / 2, 50, 32, '#ffd27f');
+  rect(10, 14, 110, 40, '#00000080'); ctx.strokeStyle = '#ffffff60'; ctx.lineWidth = 2; ctx.strokeRect(10, 14, 110, 40); text('◀ VOLTAR', 65, 34, 16);
+  MAPAS.forEach((m, i) => {
+    const x = mcardX(i), sel = i === mapIdx, livre = mapaLivre(i);
+    rect(x, MCARD_Y, MCARD_W, MCARD_H, sel ? '#ffd27f30' : '#ffffff10'); miniMapa(i, x + 8, MCARD_Y + 8, MCARD_W - 16, 104);
+    if (!livre) { rect(x + 8, MCARD_Y + 8, MCARD_W - 16, 104, '#000000b0'); text('🔒', x + MCARD_W / 2, MCARD_Y + 60, 40); }
+    ctx.strokeStyle = sel ? '#ffd27f' : '#ffffff40'; ctx.lineWidth = sel ? 4 : 2; ctx.strokeRect(x, MCARD_Y, MCARD_W, MCARD_H);
+    let fs = 17; ctx.font = `bold ${fs}px "Courier New", monospace`; while (fs > 10 && ctx.measureText(m.nome).width > MCARD_W - 10) { fs--; ctx.font = `bold ${fs}px "Courier New", monospace`; }
+    text(m.nome, x + MCARD_W / 2, MCARD_Y + 132, fs, sel ? '#ffd27f' : '#fff');
+    if (livre) text(m.pts ? 'DESBLOQUEADO' : 'LIBERADO', x + MCARD_W / 2, MCARD_Y + 160, 14, '#9fe07a');
+    else {
+      text('Precisa de ' + m.pts.toLocaleString('pt-BR') + ' pts', x + MCARD_W / 2, MCARD_Y + 156, 13, '#ff8a80');
+      const bw = MCARD_W - 24, f = Math.min(1, totalPts / m.pts); rect(x + 12, MCARD_Y + 170, bw, 10, '#400'); rect(x + 12, MCARD_Y + 170, bw * f, 10, '#ffb74d');
+      text(Math.floor(f * 100) + '%', x + MCARD_W / 2, MCARD_Y + 188, 11, '#ccc');
+    }
+  });
+  const livre = mapaLivre(mapIdx);
+  rect(PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h, livre ? (blink() ? '#2e7d32' : '#388e3c') : '#555'); ctx.strokeStyle = livre ? '#9fe07a' : '#999'; ctx.lineWidth = 3; ctx.strokeRect(PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h);
+  text(livre ? 'JOGAR' : '🔒 BLOQUEADO', VW / 2, PLAY_BTN.y + PLAY_BTN.h / 2, livre ? 26 : 20, '#fff');
+  text('Seus pontos acumulados: ' + totalPts.toLocaleString('pt-BR') + '  (somam a cada partida)', VW / 2, 405, 15, '#ffd27f');
+  text(isTouch ? 'Toque no mapa e depois em JOGAR' : '← → para escolher   |   ENTER ou clique em JOGAR   |   ESC para voltar', VW / 2, 432, 14);
+}
 function cardAt(mx, my) { for (let i = 0; i < PERSONAGENS.length; i++) if (mx > cardX(i) && mx < cardX(i) + CARD_W && my > CARD_Y && my < CARD_Y + CARD_H) return i; return -1; }
 
 function draw() {
@@ -812,7 +962,7 @@ function draw() {
   const cx = player ? cam.x : (Math.sin(time * 0.1) + 1) * 600;
   ctx.save(); ctx.translate(sx, sy);
   drawBackground(cx); drawTiles(cx);
-  if (player && state !== 'title' && state !== 'select') { drawItems(cx); drawZombies(cx); drawPlayer(cx); }
+  if (player && state !== 'title' && state !== 'select' && state !== 'mapa') { drawItems(cx); drawZombies(cx); drawPlayer(cx); }
   drawFX(cx); ctx.restore();
   if (state === 'play' || state === 'paused' || state === 'dead') drawHUD();
   if (state === 'title') {
@@ -842,7 +992,8 @@ function draw() {
     rect(PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h, blink() ? '#2e7d32' : '#388e3c'); ctx.strokeStyle = '#9fe07a'; ctx.lineWidth = 3; ctx.strokeRect(PLAY_BTN.x, PLAY_BTN.y, PLAY_BTN.w, PLAY_BTN.h);
     text('JOGAR', VW / 2, PLAY_BTN.y + PLAY_BTN.h / 2, 26, '#fff');
     text(isTouch ? 'Toque no personagem e depois em JOGAR' : '← → para escolher   |   ENTER ou clique em JOGAR   |   ESC para voltar', VW / 2, 405, 15);
-    text('Armas: Pistola e Escopeta (Fuzil liberado na rodada 3)', VW / 2, 432, 14, '#9fe07a');
+    text('Armas: Pistola e Escopeta (Fuzil liberado na rodada 3)  •  Depois: escolha o mapa', VW / 2, 432, 14, '#9fe07a');
+  } else if (state === 'mapa') { drawMapas();
   } else if (state === 'paused') { overlay(); text('PAUSADO', VW / 2, VH / 2 - 20, 48, '#ffd27f'); text('P ou ENTER para continuar', VW / 2, VH / 2 + 30, 18); text('M: som ' + (somCfg.mudo ? 'desligado' : 'ligado') + '   |   N: música ' + (somCfg.musica ? 'ligada' : 'desligada'), VW / 2, VH / 2 + 62, 15, '#ccc'); }
   else if (state === 'dead') { text('Você foi mordido!', VW / 2, 190, 30, '#ff8080'); text('Vidas restantes: ' + lives, VW / 2, 230, 20); }
   else if (state === 'gameover') {
@@ -850,6 +1001,7 @@ function draw() {
     text('Você sobreviveu até a rodada ' + round, VW / 2, 200, 22);
     text('Pontos: ' + score + '   |   Zumbis eliminados: ' + kills, VW / 2, 236, 20, '#9fe07a');
     text((score >= best && score > 0 ? 'NOVO RECORDE!' : 'Recorde: ' + best), VW / 2, 272, 18, '#ffd27f');
+    const nov = MAPAS.find(m => m.pts > totalAntes && m.pts <= totalPts); text(nov ? 'NOVO MAPA DESBLOQUEADO: ' + nov.nome + '!' : 'Pontos acumulados: ' + totalPts.toLocaleString('pt-BR'), VW / 2, 304, 17, nov ? '#9fe07a' : '#ccc');
 
   }
 }
@@ -965,7 +1117,7 @@ requestAnimationFrame(frame);
 window.__audio = { SFX, createMusic, play, sfx, get voices() { return voices; }, get actx() { return actx; }, somCfg, VOZES_MAX };
 window.__game = { get state() { return state; }, set state(v) { state = v; }, get player() { return player; }, get zombies() { return zombies; },
   get round() { return round; }, get phase() { return phase; }, get lives() { return lives; }, get score() { return score; }, get kills() { return kills; },
-  get toSpawn() { return toSpawn; }, keys, startRound: n => startRound(n), get cam() { return cam; }, update, startGame, fire, swapWeapon, spawnZombie, faceCanvas, heroFaces, zombieFaces, get RK() { return RK; }, rkAbrir, rkLimparNome, dificuldade, hurt: (d) => hurtPlayer(d, player.x + 10, null), set score(v) { score = v; } };
+  get toSpawn() { return toSpawn; }, keys, startRound: n => startRound(n), get cam() { return cam; }, update, startGame, fire, swapWeapon, spawnZombie, faceCanvas, heroFaces, zombieFaces, get RK() { return RK; }, MAPAS, get mapIdx() { return mapIdx; }, set mapIdx(v) { mapIdx = v; }, set totalPts(v) { totalPts = v; }, rkAbrir, rkLimparNome, dificuldade, hurt: (d) => hurtPlayer(d, player.x + 10, null), set score(v) { score = v; } };
 })();
 </script>
 </body>
